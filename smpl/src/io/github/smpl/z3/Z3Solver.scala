@@ -38,6 +38,8 @@ import io.github.smpl.Variable
 import io.github.smpl.EIntMod
 import io.github.smpl.EBoolImplies
 import io.github.smpl.EBoolNot
+import io.github.smpl.IOr
+import scala.collection.mutable.MutableList
 
 object Z3Solver {
   implicit def toArithExpr(expr: Expr) : ArithExpr = { expr.asInstanceOf[ArithExpr] }
@@ -92,7 +94,7 @@ class Z3Solver {
         solver.add(ctx.mkNot(ctx.mkEq(divisorArithExpr, ctx.mkInt(0))))
         ctx.mkDiv(arith(toNative(expr.getDividend)), divisorArithExpr)
       case expr: EBoolAnd => ctx.mkAnd(bool(toNative(expr.a)),bool(toNative(expr.b)))
-      case expr: EBoolOr => ctx.mkOr(bool(toNative(expr.a)),bool(toNative(expr.b)))
+      case expr: EBoolOr => ctx.mkOr(bool(for(e <- IOr.flattenOr(expr)) yield toNative(e)):_*)
       case expr: EIntMod => ctx.mkMod(arith(toNative(expr.lhs)).asInstanceOf[IntExpr], 
                                       arith(toNative(expr.rhs)).asInstanceOf[IntExpr])
       case expr: EBoolImplies => ctx.mkImplies(bool(toNative(expr.lhs)), 
@@ -102,7 +104,7 @@ class Z3Solver {
   }
   
   def bool(expr: Expr) : BoolExpr = expr.asInstanceOf[BoolExpr]
-  def bool(expr: List[Expr]) : List[BoolExpr] = expr.asInstanceOf[List[BoolExpr]]
+  def bool(expr: Seq[Expr]) : Seq[BoolExpr] = expr.asInstanceOf[Seq[BoolExpr]]
   def arith(expr: Expr) : ArithExpr = { 
     expr match {
       case expr: BoolExpr => ctx.mkITE(expr, ctx.mkInt(1), ctx.mkInt(0)).asInstanceOf[ArithExpr]

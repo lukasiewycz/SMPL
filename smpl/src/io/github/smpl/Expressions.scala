@@ -1,6 +1,7 @@
 package io.github.smpl
 
 import scala.reflect._
+import scala.collection.mutable.MutableList
 
 object E {
   implicit def toCInt(value: Int) = {new CInt(value)}
@@ -8,7 +9,9 @@ object E {
   implicit def toCBool(value: Boolean) = {new CBool(value)}
 }
 
-trait E {}
+trait E {
+  def getString(container: Any) : String = "undefined"
+}
 trait EDouble extends E {
   def +(that: EDouble) = new EDoubleSum(IList.flattenOnOperator[EDouble,ISum[EDouble]](this,that))
   def *(that: EDouble) = new EDoubleProd(IList.flattenOnOperator[EDouble,IProd[EDouble]](this,that)) 
@@ -89,15 +92,42 @@ case class ISum[A <: EDouble](list: List[A]) extends IList(list) {
 case class IProd[A <: EDouble](list: List[A]) extends IList(list) {
   override def toString = list mkString("(", " * ", ")")
 }
-case class IOr[A <: EBool](a: A, b: A) {
-  override def toString = "(" + a + " || " + b + ")"
+case class IOr[A <: EBool](a: A, b: A) extends E {
+  override def toString = getString(null)
+  override def getString(container: Any) : String = {
+    container match {
+      case e: IOr[_] => a.getString(this) + " || " + b.getString(this)
+      case default => "(" + a.getString(this) + " || " + b.getString(this) + ")"
+    }
+  }
 }
-case class IAnd[A <: EBool](a: A, b: A) {
-  override def toString = "(" + a + " && " + b + ")"
+object IOr {
+  def flattenOr(or : EBoolOr) : MutableList[EBool] = {
+    val list = new MutableList[EBool]
+    flattenOrList(or, list)
+    list
+  }
+  def flattenOrList(element : EBool, list: MutableList[EBool]) {
+    element match {
+      case e : EBoolOr => flattenOrList(e.a,list); flattenOrList(e.b, list)
+      case default => list += (element)
+    }
+  }
 }
 
-class Variable[A](name: String, var value: A) {
-  override def toString = name
+case class IAnd[A <: EBool](a: A, b: A) extends E {
+  override def toString = getString(null)
+  override def getString(container: Any) : String = {
+    container match {
+      case e: IAnd[_] => a.getString(this) + " && " + b.getString(this)
+      case default => "(" + a.getString(this) + " && " + b.getString(this) + ")"
+    }
+  }
+}
+
+class Variable[A](name: String, var value: A) extends E {
+  override def toString = getString(null)
+  override def getString(container: Any) : String = name
   def getName = name
   def getValue: A = value
   def setValue(v : A) { value = v }
