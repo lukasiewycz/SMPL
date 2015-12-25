@@ -10,11 +10,13 @@ object E {
 }
 
 trait E {
+  override def toString = getString(null)
   def getString(container: Any) : String = "undefined"
 }
+
 trait EDouble extends E {
-  def +(that: EDouble) = new EDoubleSum(IList.flattenOnOperator[EDouble,ISum[EDouble]](this,that))
-  def *(that: EDouble) = new EDoubleProd(IList.flattenOnOperator[EDouble,IProd[EDouble]](this,that)) 
+  def +(that: EDouble) = new EDoubleSum(this,that)
+  def *(that: EDouble) = new EDoubleProd(this,that) 
   def /(that: EDouble) = new EDoubleDiv(this,that)
   def <(that: EDouble) = new EBoolCompareLess(this,that)
   def <=(that: EDouble) = new EBoolCompareLessEqual(this,that)
@@ -23,14 +25,16 @@ trait EDouble extends E {
   def ===(that: EDouble) = new EBoolCompareEqual(this,that)
   def !==(that: EDouble) = new EBoolCompareNotEqual(this,that)
 }
+
 trait EInt extends EDouble {
-  def +(that: EInt) = new EIntSum(IList.flattenOnOperator[EInt,ISum[EInt]](this,that))
-  def *(that: EInt) = new EIntProd(IList.flattenOnOperator[EInt,IProd[EInt]](this,that)) 
+  def +(that: EInt) = new EIntSum(this,that)
+  def *(that: EInt) = new EIntProd(this,that)
   def /(that: EInt) = new EIntDiv(this,that) 
   def %(that: EInt) = new EIntMod(this,that)
 }
+
 trait EBool extends EInt {
-  def *(that: EBool) = new EBoolProd(IList.flattenOnOperator[EBool,IProd[EBool]](this,that)) 
+  def *(that: EBool) = new EBoolProd(this,that) 
   def &&(that: EBool) = new EBoolAnd(this,that)
   def ||(that: EBool) = new EBoolOr(this,that)
   def ->(that: EBool) = new EBoolImplies(this,that)
@@ -42,9 +46,11 @@ class IDiv[A <: EDouble](dividend: A, divisor: A) {
   def getDivisor : A = divisor
   override def toString = dividend.toString + " / " + divisor.toString
 }
+
 class IMod[A <: EInt](lhs: A, rhs: A) {
   override def toString = lhs.toString + " % " + rhs.toString
 }
+
 class INot[A <: EBool](expr: A){
   override def toString = "!"+expr.toString
 }
@@ -73,64 +79,53 @@ class ICompareNotEqual[A <: EDouble](lhs: A, rhs: A) extends ICompare[A](lhs,rhs
 }
 
 class IList[A](list: List[A]) { def getList() = list }
+class IBinaryOperator[A <: EDouble](a: A, b: A) extends E { def getA() = a; def getB() = b}
+
 object IList {
-   def  flattenOnOperator[A <: EDouble,B <: IList[A] : ClassTag](a: A, b: A) = {
-     def asList(c: A) : List[A] = {
-       if(classTag[B].runtimeClass isAssignableFrom c.getClass){
-         c.asInstanceOf[B].getList()
-       } else {
-         List(c)
+   def toList[A <: EDouble,B <: IBinaryOperator[A] : ClassTag](a: A) : MutableList[A] = {
+     val list = new MutableList[A]
+     def flatten(element : A, list: MutableList[A]) {
+       element match {
+         case e : B => flatten(e.getA(),list); flatten(e.getB(), list)
+         case default => list += element
        }
      }
-     asList(a) ::: asList(b)
+     flatten(a,list)
+     list
+   }
+   def getStringForBinaryOperator[A <: EDouble,B <: IBinaryOperator[A] : ClassTag]
+     (container : Any, c : B, separator : String) = {
+     container match {
+       case e : B => f"${c.getA().getString(c)} $separator ${c.getB().getString(c)}"
+       case default => f"(${c.getA().getString(c)} $separator ${c.getB().getString(c)})"
+     }
    }
 }
 
-case class ISum[A <: EDouble](list: List[A]) extends IList(list) {
-  override def toString = list mkString("(", " + ", ")")
+case class ISum[A <: EDouble](a: A, b: A) extends IBinaryOperator(a,b) {
+  override def getString(container: Any) = IList.getStringForBinaryOperator[A,ISum[A]](container, this, "+")
 }
-case class IProd[A <: EDouble](list: List[A]) extends IList(list) {
-  override def toString = list mkString("(", " * ", ")")
-}
-case class IOr[A <: EBool](a: A, b: A) extends E {
-  override def toString = getString(null)
-  override def getString(container: Any) : String = {
-    container match {
-      case e: IOr[_] => a.getString(this) + " || " + b.getString(this)
-      case default => "(" + a.getString(this) + " || " + b.getString(this) + ")"
-    }
-  }
-}
-object IOr {
-  def flattenOr(or : EBoolOr) : MutableList[EBool] = {
-    val list = new MutableList[EBool]
-    flattenOrList(or, list)
-    list
-  }
-  def flattenOrList(element : EBool, list: MutableList[EBool]) {
-    element match {
-      case e : EBoolOr => flattenOrList(e.a,list); flattenOrList(e.b, list)
-      case default => list += (element)
-    }
-  }
+case class IProd[A <: EDouble](a: A, b: A) extends IBinaryOperator(a,b) {
+  override def getString(container: Any) = IList.getStringForBinaryOperator[A,IProd[A]](container, this, "*")
 }
 
-case class IAnd[A <: EBool](a: A, b: A) extends E {
-  override def toString = getString(null)
-  override def getString(container: Any) : String = {
-    container match {
-      case e: IAnd[_] => a.getString(this) + " && " + b.getString(this)
-      case default => "(" + a.getString(this) + " && " + b.getString(this) + ")"
-    }
-  }
+case class IOr[A <: EBool](a: A, b: A) extends IBinaryOperator(a,b) {
+  override def getString(container: Any) = IList.getStringForBinaryOperator[A,IOr[A]](container, this, "||")
+}
+
+case class IAnd[A <: EBool](a: A, b: A) extends IBinaryOperator(a,b) {
+  override def getString(container: Any) = IList.getStringForBinaryOperator[A,IAnd[A]](container, this, "&&")
 }
 
 class Variable[A](name: String, var value: A) extends E {
-  override def toString = getString(null)
-  override def getString(container: Any) : String = name
+  override def getString(container: Any) = name
   def getName = name
   def getValue: A = value
   def setValue(v : A) { value = v }
+}
+
+class Constant[A](value: A) extends E {
+  override def getString(container: Any) = value.toString()
 }
 
 abstract class VariableDomain[A](name: String, domain: List[_], var map: Map[List[_],A]) {
@@ -151,27 +146,20 @@ case class VInt(name: String) extends Variable[Int](name, 0) with EInt {}
 case class VDouble(name: String) extends Variable[Double](name, 0.0) with EDouble {}
 case class VBool(name: String) extends Variable[Boolean](name, false) with EBool {}
 
+case class CInt(value: Int) extends Constant[Int](value) with EInt {}
+case class CDouble(value: Double) extends Constant[Double](value) with EDouble {}
+case class CBool(value: Boolean) extends Constant[Boolean](value) with EBool {}
 
-case class CInt(value: Integer) extends EInt {
-  override def toString = value.toString
-}
-case class CDouble(value: Double) extends EDouble {
-  override def toString = value.toString
-}
-case class CBool(value: Boolean) extends EBool {
-  override def toString = value.toString
-}
+class EDoubleSum(a: EDouble, b: EDouble) extends ISum[EDouble](a,b) with EDouble {}
+class EDoubleProd(a: EDouble, b: EDouble) extends IProd[EDouble](a,b) with EDouble {}
+class EDoubleDiv(dividend: EDouble, divisor: EDouble) extends IDiv[EDouble](dividend, divisor) with EDouble {}
 
-class EIntSum (list: List[EInt]) extends ISum[EInt](list) with EInt {}
-class EIntProd (list: List[EInt]) extends IProd[EInt](list) with EInt {}
+class EIntSum (a: EInt, b: EInt) extends ISum[EInt](a,b) with EInt {}
+class EIntProd (a: EInt, b: EInt) extends IProd[EInt](a,b) with EInt {}
 case class EIntDiv(dividend: EInt, divisor: EInt) extends IDiv[EInt](dividend, divisor) with EInt {}
 case class EIntMod(lhs: EInt, rhs: EInt) extends IMod[EInt](lhs,rhs) with EInt {}
 
-class EDoubleSum(list: List[EDouble]) extends ISum[EDouble](list) with EDouble {}
-class EDoubleProd(list: List[EDouble]) extends IProd[EDouble](list) with EDouble {}
-class EDoubleDiv(dividend: EDouble, divisor: EDouble) extends IDiv[EDouble](dividend, divisor) with EDouble {}
-
-class EBoolProd(list: List[EBool]) extends IProd[EBool](list) with EBool {}
+class EBoolProd(a: EBool, b: EBool) extends IProd[EBool](a,b) with EBool {}
 class EBoolOr(a: EBool, b: EBool) extends IOr[EBool](a,b) with EBool {}
 class EBoolAnd(a: EBool, b: EBool) extends IAnd[EBool](a,b) with EBool {}
 case class EBoolImplies(lhs: EBool, rhs: EBool) extends EBool {}

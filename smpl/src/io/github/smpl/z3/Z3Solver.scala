@@ -40,6 +40,10 @@ import io.github.smpl.EBoolImplies
 import io.github.smpl.EBoolNot
 import io.github.smpl.IOr
 import scala.collection.mutable.MutableList
+import io.github.smpl.IList
+import io.github.smpl.EDouble
+import io.github.smpl.EInt
+import scala.None
 
 object Z3Solver {
   implicit def toArithExpr(expr: Expr) : ArithExpr = { expr.asInstanceOf[ArithExpr] }
@@ -86,15 +90,17 @@ class Z3Solver {
       case expr: CInt => ctx.mkInt(expr.value)
       case expr: CDouble => ctx.mkReal(0, 0) // TODO
       case expr: Variable[_] => variable(expr)
-      case expr: ISum[_] => ctx.mkAdd(arith(for(e <- expr.list) yield toNative(e)):_*)
-      case expr: EBoolProd => ctx.mkAnd(bool(for(e <- expr.list) yield toNative(e)):_*)
-      case expr: IProd[_] => ctx.mkMul(arith(for(e <- expr.list) yield toNative(e)):_*)
+      case expr: EIntSum => ctx.mkAdd(arith(for(e <- IList.toList[EInt,EIntSum](expr)) yield toNative(e)) : _*)
+      case expr: EDoubleSum => ctx.mkAdd(arith(for(e <- IList.toList[EDouble,EDoubleSum](expr)) yield toNative(e)) : _*)
+      case expr: EBoolProd => ctx.mkAnd(bool(for(e <- IList.toList[EBool,EBoolProd](expr)) yield toNative(e)) : _*)
+      case expr: EIntProd => ctx.mkMul(arith(for(e <- IList.toList[EInt,EIntProd](expr)) yield toNative(e)) : _*)
+      case expr: EDoubleProd => ctx.mkMul(arith(for(e <- IList.toList[EDouble,EDoubleProd](expr)) yield toNative(e)) : _*)
       case expr: IDiv[_] => 
         val divisorArithExpr = arith(toNative(expr.getDivisor))
         solver.add(ctx.mkNot(ctx.mkEq(divisorArithExpr, ctx.mkInt(0))))
         ctx.mkDiv(arith(toNative(expr.getDividend)), divisorArithExpr)
-      case expr: EBoolAnd => ctx.mkAnd(bool(toNative(expr.a)),bool(toNative(expr.b)))
-      case expr: EBoolOr => ctx.mkOr(bool(for(e <- IOr.flattenOr(expr)) yield toNative(e)):_*)
+      case expr: EBoolAnd => ctx.mkAnd(bool(for(e <- IList.toList[EBool,EBoolAnd](expr)) yield toNative(e)) : _*)
+      case expr: EBoolOr => ctx.mkOr(bool(for(e <- IList.toList[EBool,EBoolOr](expr)) yield toNative(e)) : _*)
       case expr: EIntMod => ctx.mkMod(arith(toNative(expr.lhs)).asInstanceOf[IntExpr], 
                                       arith(toNative(expr.rhs)).asInstanceOf[IntExpr])
       case expr: EBoolImplies => ctx.mkImplies(bool(toNative(expr.lhs)), 
@@ -105,13 +111,14 @@ class Z3Solver {
   
   def bool(expr: Expr) : BoolExpr = expr.asInstanceOf[BoolExpr]
   def bool(expr: Seq[Expr]) : Seq[BoolExpr] = expr.asInstanceOf[Seq[BoolExpr]]
-  def arith(expr: Expr) : ArithExpr = { 
-    expr match {
-      case expr: BoolExpr => ctx.mkITE(expr, ctx.mkInt(1), ctx.mkInt(0)).asInstanceOf[ArithExpr]
-      case expr: ArithExpr => expr
-    }
+  def arith(expr: Expr) : ArithExpr = expr match {
+    case expr: BoolExpr => ctx.mkITE(expr, ctx.mkInt(1), ctx.mkInt(0)).asInstanceOf[ArithExpr]
+    case expr: ArithExpr => expr
   }
-  def arith(expr: List[Expr]) : List[ArithExpr] = { for(e <- expr) yield arith(e) }
+  def arith(expr: MutableList[Expr]) : MutableList[ArithExpr] = {
+    for( i <- 0 to expr.length-1){ expr(i) = arith(expr(i)) }
+    expr.asInstanceOf[MutableList[ArithExpr]]
+  }
   def variable(variable: Variable[_]) : Expr = {
     if(!variables.contains(variable)){
       val expr = variable match {

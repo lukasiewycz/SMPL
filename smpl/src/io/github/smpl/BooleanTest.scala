@@ -13,19 +13,21 @@ object BooleanTest extends App {
   val b3 = new VBool("b3")
 
   val or = b0 || b1 || b2 || b3
-  val and = b0 && b1 && b2
+  val and = b0 && b1 && (b2 || b3)
   val mix = b0 || b1 && b2
   
   println(or)
   println(and)
   println(mix)
+  println(b0 && b1 && b2 && b3)
   
-  println(IOr.flattenOr(or))
+  println(IList.toList[EBool,EBoolOr](or))
+  println(IList.toList[EBool,EBoolAnd](and))
   
   val solver = new Z3Solver
   val constraints : List[EBool] = List(
-      b0 || b1 || b2 || b3,
-      b0 && b1
+      b0 || (b1 && b2) || b3,
+      b0 && b1 && (b2 || b3)
   )
   solver.solve(constraints)
       
