@@ -91,8 +91,8 @@ class Z3Solver {
         val divisorArithExpr = arith(toNative(expr.getDivisor))
         solver.add(ctx.mkNot(ctx.mkEq(divisorArithExpr, ctx.mkInt(0))))
         ctx.mkDiv(arith(toNative(expr.getDividend)), divisorArithExpr)
-      case expr: EBoolAnd => ctx.mkAnd(bool(for(e <- expr.list) yield toNative(e)):_*)
-      case expr: EBoolOr => ctx.mkOr(bool(for(e <- expr.list) yield toNative(e)):_*)
+      case expr: EBoolAnd => ctx.mkAnd(bool(toNative(expr.a)),bool(toNative(expr.b)))
+      case expr: EBoolOr => ctx.mkOr(bool(toNative(expr.a)),bool(toNative(expr.b)))
       case expr: EIntMod => ctx.mkMod(arith(toNative(expr.lhs)).asInstanceOf[IntExpr], 
                                       arith(toNative(expr.rhs)).asInstanceOf[IntExpr])
       case expr: EBoolImplies => ctx.mkImplies(bool(toNative(expr.lhs)), 

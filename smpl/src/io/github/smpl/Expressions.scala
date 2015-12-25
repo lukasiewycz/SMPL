@@ -28,8 +28,8 @@ trait EInt extends EDouble {
 }
 trait EBool extends EInt {
   def *(that: EBool) = new EBoolProd(IList.flattenOnOperator[EBool,IProd[EBool]](this,that)) 
-  def &&(that: EBool) = new EBoolAnd(IList.flattenOnOperator[EBool,IAnd[EBool]](this,that))
-  def ||(that: EBool) = new EBoolOr(IList.flattenOnOperator[EBool,IOr[EBool]](this,that))
+  def &&(that: EBool) = new EBoolAnd(this,that)
+  def ||(that: EBool) = new EBoolOr(this,that)
   def ->(that: EBool) = new EBoolImplies(this,that)
   def unary_!() = new EBoolNot(this)
 }
@@ -89,11 +89,11 @@ case class ISum[A <: EDouble](list: List[A]) extends IList(list) {
 case class IProd[A <: EDouble](list: List[A]) extends IList(list) {
   override def toString = list mkString("(", " * ", ")")
 }
-case class IOr[A <: EBool](list: List[A]) extends IList(list) {
-  override def toString = list mkString("(", " || ", ")")
+case class IOr[A <: EBool](a: A, b: A) {
+  override def toString = "(" + a + " || " + b + ")"
 }
-case class IAnd[A <: EBool](list: List[A]) extends IList(list) {
-  override def toString = list mkString("(", " && ", ")")
+case class IAnd[A <: EBool](a: A, b: A) {
+  override def toString = "(" + a + " && " + b + ")"
 }
 
 class Variable[A](name: String, var value: A) {
@@ -142,8 +142,8 @@ class EDoubleProd(list: List[EDouble]) extends IProd[EDouble](list) with EDouble
 class EDoubleDiv(dividend: EDouble, divisor: EDouble) extends IDiv[EDouble](dividend, divisor) with EDouble {}
 
 class EBoolProd(list: List[EBool]) extends IProd[EBool](list) with EBool {}
-class EBoolOr(list: List[EBool]) extends IOr[EBool](list) with EBool {}
-class EBoolAnd(list: List[EBool]) extends IAnd[EBool](list) with EBool {}
+class EBoolOr(a: EBool, b: EBool) extends IOr[EBool](a,b) with EBool {}
+class EBoolAnd(a: EBool, b: EBool) extends IAnd[EBool](a,b) with EBool {}
 case class EBoolImplies(lhs: EBool, rhs: EBool) extends EBool {}
 case class EBoolNot(expr: EBool) extends INot(expr) with EBool {}
 class EBoolCompareLess(lhs: EDouble, rhs: EDouble) extends ICompareLess(lhs,rhs) with EBool {}
